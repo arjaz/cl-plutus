@@ -6,6 +6,6 @@
   :license  "Specify license here"
   :version "0.0.1"
   :serial t
-  :depends-on (#:cl-match)
+  :depends-on (#:alexandria)
   :components ((:file "package")
                (:file "plisp")))
