@@ -14,30 +14,11 @@
 (defgeneric from-plutus (v)
   (:documentation "Convert the primitive plutus value `v' to a lisp value"))
 
-(defun slot-name (class-name arg-name)
-  (intern (concatenate 'string (symbol-name class-name) "-" (symbol-name arg-name))))
-
-(defun arg->slot (class-name arg-name)
-  (list arg-name
-        :initarg (make-keyword (symbol-name arg-name))
-        :accessor (slot-name class-name arg-name)))
-
-(defun args->make-instance-plist (args)
-  (apply #'append (loop for a in args collecting (list (make-keyword (symbol-name a)) a))))
-
 (defun eval-typecheck-plutus (env v type)
   (let ((evaled (eval-plutus env v)))
     (if (eql (type-of evaled) type)
         evaled
         (error 'type-error :datum v :expected-type type))))
-
-(defun arg->evaled-typechecked (class-object-symbol class-name arg)
-  (if (consp arg)
-      `(,(car arg) (eval-typecheck-plutus env (,(slot-name class-name (car arg)) ,class-object-symbol) (quote ,(cadr arg))))
-      `(,arg (eval-plutus env (,(slot-name class-name arg) ,class-object-symbol)))))
-
-(defun arg->not-evaled (class-object-symbol class-name arg)
-  `(,arg (,(slot-name class-name arg) ,class-object-symbol)))
 
 (defun apply-to-plutus (lisp-function &rest plutus-args)
   (to-plutus (apply lisp-function (loop for a in plutus-args collecting (from-plutus a)))))
@@ -50,43 +31,67 @@
 
 (defmacro defun-builtin-plutus (name args &rest body)
   "Create a class named NAME, a helper ast building function named NAME which stores (LENGTH ARGS) slots,
-and a EVAL-PLUTUS method implementation for that class from the BODY.
+and an EVAL-PLUTUS method implementation for that class from the BODY.
 
 NAME is a symbol.
 ARGS is a list of symbols or (SYMBOL TYPE) lists where TYPE is a plutus type name.
 BODY is provided with an implicit argument ENV."
-  (let* ((arg-names (loop for a in args collecting (if (consp a) (car a) a)))
-         (slots (loop for a in arg-names collecting (arg->slot name a)))
-         (make-instance-args (args->make-instance-plist arg-names))
-         (f (gensym "f"))
-         (let-evaled-args (loop for a in args collecting (arg->evaled-typechecked f name a))))
-    `(progn
-       (defclass ,name () ,slots)
-       (defun ,name ,arg-names
-         (make-instance (quote ,name) ,@make-instance-args))
-       (defmethod eval-plutus (env (,f ,name))
-         (let ,let-evaled-args
-           ,@body)))))
+  (labels ((slot-name (class-name arg-name)
+             (intern (concatenate 'string (symbol-name class-name) "-" (symbol-name arg-name))))
+           (arg->slot (class-name arg-name)
+             (list arg-name
+                   :initarg (make-keyword (symbol-name arg-name))
+                   :accessor (slot-name class-name arg-name)))
+           (args->make-instance-plist (args)
+             (apply #'append (loop for a in args collecting (list (make-keyword (symbol-name a)) a))))
+           (arg->evaled-typechecked (class-object-symbol class-name arg)
+             (if (consp arg)
+                 `(,(car arg)
+                   (eval-typecheck-plutus env (,(slot-name class-name (car arg)) ,class-object-symbol) (quote ,(cadr arg))))
+                 `(,arg
+                   (eval-plutus env (,(slot-name class-name arg) ,class-object-symbol))))))
+    (let* ((arg-names (loop for a in args collecting (if (consp a) (car a) a)))
+           (slots (loop for a in arg-names collecting (arg->slot name a)))
+           (make-instance-args (args->make-instance-plist arg-names))
+           (f (gensym "f"))
+           (let-evaled-args (loop for a in args collecting (arg->evaled-typechecked f name a))))
+      `(progn
+         (defclass ,name () ,slots)
+         (defun ,name ,arg-names
+           (make-instance (quote ,name) ,@make-instance-args))
+         (defmethod eval-plutus (env (,f ,name))
+           (let ,let-evaled-args
+             ,@body))))))
 
 (defmacro defast-plutus (name args &rest body)
   "Create a class named NAME, a helper ast building function named NAME which stores (LENGTH ARGS) slots,
-and a EVAL-PLUTUS method implementation for that class from the BODY.
+and an EVAL-PLUTUS method implementation for that class from the BODY.
 
 NAME is a symbol.
 ARGS is a list of symbols.
 BODY is provided with implicit arguments ENV and SELF."
-  (let* ((arg-names (loop for a in args collecting (if (consp a) (car a) a)))
-         (slots (loop for a in arg-names collecting (arg->slot name a)))
-         (make-instance-args (args->make-instance-plist arg-names))
-         (let-args (loop for a in args collecting (arg->not-evaled 'self name a))))
-    `(progn
-       (defclass ,name () ,slots)
-       (defun ,name ,arg-names
-         (make-instance (quote ,name) ,@make-instance-args))
-       (defmethod eval-plutus (env (self ,name))
-         (let ,let-args
-           (declare (ignorable ,@(loop for e in let-args collecting (car e))))
-           ,@body)))))
+  (labels ((slot-name (class-name arg-name)
+             (intern (concatenate 'string (symbol-name class-name) "-" (symbol-name arg-name))))
+           (arg->slot (class-name arg-name)
+             (list arg-name
+                   :initarg (make-keyword (symbol-name arg-name))
+                   :accessor (slot-name class-name arg-name)))
+           (args->make-instance-plist (args)
+             (apply #'append (loop for a in args collecting (list (make-keyword (symbol-name a)) a))))
+           (arg->not-evaled (class-object-symbol class-name arg)
+             `(,arg (,(slot-name class-name arg) ,class-object-symbol))))
+    (let* ((arg-names (loop for a in args collecting (if (consp a) (car a) a)))
+           (slots (loop for a in arg-names collecting (arg->slot name a)))
+           (make-instance-args (args->make-instance-plist arg-names))
+           (let-args (loop for a in args collecting (arg->not-evaled 'self name a))))
+      `(progn
+         (defclass ,name () ,slots)
+         (defun ,name ,arg-names
+           (make-instance (quote ,name) ,@make-instance-args))
+         (defmethod eval-plutus (env (self ,name))
+           (let ,let-args
+             (declare (ignorable ,@(loop for e in let-args collecting (car e))))
+             ,@body))))))
 
 (defast-plutus plutus-bool (value)
   self)
