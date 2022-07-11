@@ -1,4 +1,4 @@
 ;;;; package.lisp
 
-(defpackage #:plisp
+(defpackage #:cl-plutus
   (:use #:cl #:alexandria))

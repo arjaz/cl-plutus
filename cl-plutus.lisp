@@ -1,7 +1,7 @@
-;;;; plisp.lisp
+;;;; cl-plutus.lisp
 ;; reference: https://github.com/runtimeverification/plutus-core-semantics
 
-(in-package #:plisp)
+(in-package #:cl-plutus)
 
 (declaim (optimize safety debug))
 
