@@ -8,11 +8,11 @@ All different ast nodes are represented as separate classes.
 Builtin functions are represented as separate classes as well.
 ** Generic functions
 *** to-plutus
-A function to convert the lisp-level value to the plutus-level value
+A function to convert the lisp-level value to the plutus-level value.
 *** from-plutus
-A function to convert the plutus-level value to the lisp-level value
-Handles only the primitive type conversions.
+A function to convert the plutus-level value to the lisp-level value.
+Only handles the primitive type conversions.
 *** emit-plutus
-A function to emit the UPLC representation of the plutus AST
-*** reduce-plutus
-A function to evaluate the plutus ast and reduce it to its normal form
+A function to emit the UPLC representation of the plutus AST.
+*** eval-plutus
+A function to evaluate the plutus ast.
